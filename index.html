@@ -3,47 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Космический Защитник 2.0</title>
+    <title>Звездный Рубеж</title>
     <style>
         body, html {
             margin: 0; padding: 0; overflow: hidden;
-            background-color: #050510;
-            font-family: 'Arial', sans-serif;
-            width: 100%; height: 100%;
-            user-select: none; touch-action: none;
+            background-color: #03030d; font-family: 'Segoe UI', Roboto, sans-serif;
+            width: 100%; height: 100%; user-select: none; touch-action: none;
         }
         canvas { display: block; width: 100%; height: 100%; }
-        #ui {
-            position: absolute; top: 15px; left: 15px;
-            color: #fff; font-size: 18px; font-weight: bold;
-            text-shadow: 0 0 8px #00ffff; pointer-events: none;
-            display: flex; flex-direction: column; gap: 5px;
+        /* Главное меню */
+        #menu {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, #090924 0%, #03030d 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; z-index: 10;
         }
+        h1 { font-size: 36px; margin-bottom: 5px; text-shadow: 0 0 10px #00ffff; color: #00ffff; letter-spacing: 2px; }
+        .sub { font-size: 14px; color: #8a8a9a; margin-bottom: 40px; }
+        .ship-select { display: flex; gap: 20px; margin-bottom: 40px; }
+        .ship-card {
+            border: 2px solid #2a2a4a; padding: 15px; border-radius: 12px; text-align: center;
+            width: 110px; background: rgba(255,255,255,0.03); cursor: pointer; transition: 0.2s;
+        }
+        .ship-card.active { border-color: #00ffff; box-shadow: 0 0 15px rgba(0,255,255,0.3); background: rgba(0,255,255,0.05); }
+        .ship-card h3 { margin: 5px 0; font-size: 16px; }
+        .ship-card p { margin: 0; font-size: 11px; color: #aaa; }
+        .start-btn {
+            background: #00ff66; color: #000; border: none; padding: 14px 45px;
+            font-size: 20px; font-weight: bold; border-radius: 30px; cursor: pointer; box-shadow: 0 0 15px #00ff66;
+        }
+        /* Интерфейс во время боя */
+        #ui {
+            position: absolute; top: 15px; left: 15px; color: #fff; font-size: 16px;
+            font-weight: bold; pointer-events: none; display: flex; flex-direction: column; gap: 6px;
+        }
+        /* Экран поражения */
         #game-over {
             display: none; position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%); color: #ff3333; text-align: center;
-            background: rgba(5, 5, 20, 0.9); padding: 30px; border-radius: 15px;
-            border: 2px solid #ff3333; box-shadow: 0 0 20px #ff3333;
+            background: rgba(4, 4, 15, 0.95); padding: 35px; border-radius: 16px;
+            border: 2px solid #ff3333; box-shadow: 0 0 25px #ff3333; z-index: 5;
         }
         #game-over button {
-            background: #28a745; color: white; border: none;
-            padding: 12px 30px; font-size: 18px; border-radius: 8px;
-            cursor: pointer; margin-top: 15px; box-shadow: 0 0 10px #28a745;
+            background: #00ff66; color: black; border: none; padding: 12px 35px;
+            font-size: 18px; font-weight: bold; border-radius: 25px; cursor: pointer; margin-top: 20px;
         }
     </style>
 </head>
 <body>
 
+    <!-- Главное Меню -->
+    <div id="menu">
+        <h1>ЗВЕЗДНЫЙ РУБЕЖ</h1>
+        <div class="sub">аркадный космический шутер</div>
+        <div class="ship-select">
+            <div class="ship-card active" id="ship1" onclick="selectShip('corsair')">
+                <div style="color:#00ffff; font-size:24px;">🚀</div>
+                <h3>КОРШУН</h3>
+                <p>Тройная атака со старта</p>
+            </div>
+            <div class="ship-card" id="ship2" onclick="selectShip('titan')">
+                <div style="color:#ffaa00; font-size:24px;">🛸</div>
+                <h3>ВИТЯЗЬ</h3>
+                <p>Повышенная броня и щит</p>
+            </div>
+        </div>
+        <button class="start-btn" onclick="startGame()">ПОГНАЛИ!</button>
+    </div>
+
+    <!-- Боевой интерфейс -->
     <div id="ui">
         <div>Счёт: <span id="score">0</span></div>
-        <div>Оружие: <span id="weapon-ui" style="color: #00ffff;">Обычное</span></div>
-        <div>Щит: <span id="shield-ui" style="color: #ffaa00;">Выключен</span></div>
+        <div>Оружие: <span id="weapon-ui" style="color: #00ffff;">Стандарт</span></div>
+        <div>Защитное поле: <span id="shield-ui" style="color: #ffaa00;">Выкл</span></div>
     </div>
     
+    <!-- Конец игры -->
     <div id="game-over">
-        <h2>КОРАБЛЬ УНИЧТОЖЕН</h2>
-        <p>Вы пали в бою с космической угрозой!</p>
-        <button onclick="restartGame()">Начать заново</button>
+        <h2 style="margin:0 0 10px 0; font-size:28px;">КОРАБЛЬ РАЗБИТ</h2>
+        <p>Сектор потерян. Попробуем ещё раз?</p>
+        <button onclick="restartGame()">В БОЙ!</button>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -54,131 +92,181 @@
         const weaponUiEl = document.getElementById("weapon-ui");
         const shieldUiEl = document.getElementById("shield-ui");
         const gameOverEl = document.getElementById("game-over");
+        const menuEl = document.getElementById("menu");
 
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
         resizeCanvas();
 
         let score = 0; let isGameOver = false; let frameCount = 0;
+        let chosenShip = 'corsair'; // по умолчанию
+        let bossCount = 1; // Счётчик для усложнения боссов
 
         const player = {
-            x: canvas.width / 2, y: canvas.height - 120, radius: 22,
+            x: canvas.width / 2, y: canvas.height - 120, radius: 20,
             weaponType: 'normal', weaponTimer: 0, hasShield: false, shieldTimer: 0
         };
 
         let lasers = []; let enemyLasers = []; let asteroids = [];
         let upgrades = []; let particles = []; let boss = null;
 
+        // Звёздное небо
         let stars = [];
-        for (let i = 0; i < 50; i++) {
-            stars.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, size: Math.random() * 2, speed: Math.random() * 1 + 0.5 });
+        for (let i = 0; i < 40; i++) {
+            stars.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, size: Math.random() * 1.5, speed: Math.random() * 0.8 + 0.3 });
+        }
+
+        function selectShip(type) {
+            chosenShip = type;
+            document.getElementById('ship1').classList.toggle('active', type === 'corsair');
+            document.getElementById('ship2').classList.toggle('active', type === 'titan');
         }
 
         function createExplosion(x, y, color) {
-            for (let i = 0; i < 12; i++) {
+            for (let i = 0; i < 10; i++) {
                 particles.push({
-                    x: x, y: y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
-                    radius: Math.random() * 3 + 1, alpha: 1, color: color
+                    x: x, y: y, vx: (Math.random() - 0.5) * 5, vy: (Math.random() - 0.5) * 5,
+                    radius: Math.random() * 2.5 + 1, alpha: 1, color: color
                 });
             }
         }
 
         window.addEventListener("touchmove", (e) => {
-            if (isGameOver) return;
+            if (isGameOver || menuEl.style.display !== "none") return;
             player.x = e.touches[0].clientX;
             if (player.x < player.radius) player.x = player.radius;
             if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
         });
+
+        function startGame() {
+            menuEl.style.display = "none";
+            if (chosenShip === 'corsair') {
+                player.weaponType = 'triple'; player.weaponTimer = 500;
+                weaponUiEl.innerText = "Тройной лазер"; weaponUiEl.style.color = "#ff00ff";
+            } else if (chosenShip === 'titan') {
+                player.hasShield = true; player.shieldTimer = 99999; // Долгий щит на старт
+                shieldUiEl.innerText = "Активен (Броня)"; shieldUiEl.style.color = "#00ff00";
+            }
+            gameLoop();
+        }
                     function gameLoop() {
             if (isGameOver) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             frameCount++;
 
+            // Движение космоса
             ctx.fillStyle = "#ffffff";
             stars.forEach(s => { s.y += s.speed; if (s.y > canvas.height) s.y = 0; ctx.fillRect(s.x, s.y, s.size, s.size); });
 
-            if (player.weaponType === 'triple' && --player.weaponTimer <= 0) { player.weaponType = 'normal'; weaponUiEl.innerText = "Обычное"; weaponUiEl.style.color = "#00ffff"; }
-            if (player.hasShield && --player.shieldTimer <= 0) { player.hasShield = false; shieldUiEl.innerText = "Выключен"; shieldUiEl.style.color = "#ffaa00"; }
+            // Таймеры бустов
+            if (player.weaponType === 'triple' && chosenShip !== 'corsair' && --player.weaponTimer <= 0) { player.weaponType = 'normal'; weaponUiEl.innerText = "Стандарт"; weaponUiEl.style.color = "#00ffff"; }
+            if (player.hasShield && --player.shieldTimer <= 0) { player.hasShield = false; shieldUiEl.innerText = "Выкл"; shieldUiEl.style.color = "#ffaa00"; }
 
-            if (frameCount % 10 === 0) {
+            // Стрельба игрока
+            if (frameCount % 11 === 0) {
                 if (player.weaponType === 'triple') {
                     lasers.push({ x: player.x, y: player.y - 20, vx: 0, vy: -10 });
-                    lasers.push({ x: player.x - 15, y: player.y, vx: -2, vy: -9 });
-                    lasers.push({ x: player.x + 15, y: player.y, vx: 2, vy: -9 });
+                    lasers.push({ x: player.x - 12, y: player.y, vx: -1.8, vy: -9.5 });
+                    lasers.push({ x: player.x + 12, y: player.y, vx: 1.8, vy: -9.5 });
                 } else { lasers.push({ x: player.x, y: player.y - 20, vx: 0, vy: -10 }); }
             }
 
-            if (score > 0 && score % 500 === 0 && !boss) {
-                boss = { x: canvas.width / 2, y: -100, targetY: 100, width: 120, height: 60, hp: 50, maxHp: 50, dir: 1, speed: 2 };
+            // Появление Босса-Крейсера каждые 2000 очков
+            if (score > 0 && score % 2000 === 0 && !boss) {
+                let maxHp = 40 + (bossCount * 20); // С каждым разом у босса больше ХП
+                boss = { x: canvas.width / 2, y: -120, targetY: 120, width: 140, height: 50, hp: maxHp, maxHp: maxHp, dir: 1, speed: 1.5 + (bossCount * 0.5) };
             }
 
             if (!boss && frameCount % 35 === 0) {
-                let size = Math.random() * 25 + 15;
-                asteroids.push({ x: Math.random() * (canvas.width - size * 2) + size, y: -size, speed: Math.random() * 3 + 3, radius: size, angle: 0, rotSpeed: (Math.random() - 0.5) * 0.05 });
+                let size = Math.random() * 22 + 14;
+                asteroids.push({ x: Math.random() * (canvas.width - size * 2) + size, y: -size, speed: Math.random() * 2.5 + 3, radius: size, angle: 0, rotSpeed: (Math.random() - 0.5) * 0.04 });
             }
 
+            // Отрисовка детализированного Босса (Корабль-Крейсер)
             if (boss) {
-                if (boss.y < boss.targetY) boss.y += 2;
-                else { boss.x += boss.speed * boss.dir; if (boss.x > canvas.width - boss.width/2 - 20 || boss.x < boss.width/2 + 20) boss.dir *= -1; }
-                if (frameCount % 45 === 0) { enemyLasers.push({ x: boss.x - 30, y: boss.y + 30, speed: 6 }); enemyLasers.push({ x: boss.x + 30, y: boss.y + 30, speed: 6 }); }
-                ctx.fillStyle = "#ff00ff"; ctx.shadowBlur = 20; ctx.shadowColor = "#ff00ff"; ctx.fillRect(boss.x - boss.width/2, boss.y - boss.height/2, boss.width, boss.height);
-                ctx.fillStyle = "#ffaa00"; ctx.fillRect(boss.x - 20, boss.y - boss.height/2 - 10, 40, 10); ctx.shadowBlur = 0;
-                ctx.fillStyle = "#330033"; ctx.fillRect(boss.x - 50, boss.y - 50, 100, 8); ctx.fillStyle = "#ff00ff"; ctx.fillRect(boss.x - 50, boss.y - 50, (boss.hp / boss.maxHp) * 100, 8);
+                if (boss.y < boss.targetY) boss.y += 1.5;
+                else { boss.x += boss.speed * boss.dir; if (boss.x > canvas.width - 80 || boss.x < 80) boss.dir *= -1; }
+                
+                // Босс атакует очередями
+                if (frameCount % 40 === 0) {
+                    enemyLasers.push({ x: boss.x - 45, y: boss.y + 20, speed: 5 + bossCount });
+                    enemyLasers.push({ x: boss.x + 45, y: boss.y + 20, speed: 5 + bossCount });
+                }
+
+                ctx.save(); ctx.translate(boss.x, boss.y);
+                ctx.shadowBlur = 15; ctx.shadowColor = "#ff0055";
+                // Крылья босса
+                ctx.fillStyle = "#3a3a5a"; ctx.beginPath(); ctx.moveTo(-70, -10); ctx.lineTo(-40, 20); ctx.lineTo(40, 20); ctx.lineTo(70, -10); ctx.lineTo(0, -25); ctx.closePath(); ctx.fill();
+                // Основной корпус
+                ctx.fillStyle = "#1e1e2f"; ctx.fillRect(-30, -20, 60, 40);
+                // Кабина и орудия босса
+                ctx.fillStyle = "#ff0055"; ctx.fillRect(-5, 10, 10, 15); ctx.fillRect(-48, 15, 6, 12); ctx.fillRect(42, 15, 6, 12);
+                ctx.restore(); ctx.shadowBlur = 0;
+
+                // Полоска здоровья
+                ctx.fillStyle = "#220005"; ctx.fillRect(boss.x - 60, boss.y - 45, 120, 7);
+                ctx.fillStyle = "#ff0055"; ctx.fillRect(boss.x - 60, boss.y - 45, (boss.hp / boss.maxHp) * 120, 7);
             }
 
-            ctx.shadowBlur = 15; ctx.shadowColor = "#00ffff";
-            ctx.fillStyle = frameCount % 2 === 0 ? "#ff5500" : "#ffaa00"; ctx.beginPath(); ctx.moveTo(player.x - 8, player.y + 20); ctx.lineTo(player.x, player.y + 35); ctx.lineTo(player.x + 8, player.y + 20); ctx.fill();
-            ctx.fillStyle = "#00ffff"; ctx.beginPath(); ctx.moveTo(player.x, player.y - 25); ctx.lineTo(player.x - 20, player.y + 20); ctx.lineTo(player.x + 20, player.y + 20); ctx.closePath(); ctx.fill();
-            ctx.fillStyle = "#ffffff"; ctx.fillRect(player.x - 4, player.y - 5, 8, 12);
+            // Отрисовка игрока
+            ctx.shadowBlur = 12; ctx.shadowColor = chosenShip === 'corsair' ? "#00ffff" : "#ffaa00";
+            ctx.fillStyle = "#ff6a00"; ctx.beginPath(); ctx.moveTo(player.x - 6, player.y + 18); ctx.lineTo(player.x, player.y + 32); ctx.lineTo(player.x + 6, player.y + 18); ctx.fill();
+            ctx.fillStyle = chosenShip === 'corsair' ? "#00ffff" : "#e69500";
+            ctx.beginPath(); ctx.moveTo(player.x, player.y - 22); ctx.lineTo(player.x - 18, player.y + 18); ctx.lineTo(player.x + 18, player.y + 18); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = "#ffffff"; ctx.fillRect(player.x - 3, player.y - 4, 6, 10); ctx.shadowBlur = 0;
 
-            if (player.hasShield) { ctx.strokeStyle = "#ffaa00"; ctx.lineWidth = 3; ctx.shadowColor = "#ffaa00"; ctx.beginPath(); ctx.arc(player.x, player.y, player.radius + 10, 0, Math.PI * 2); ctx.stroke(); }
-            ctx.shadowBlur = 0;
+            if (player.hasShield) { ctx.strokeStyle = "#00ff66"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(player.x, player.y, player.radius + 8, 0, Math.PI * 2); ctx.stroke(); }
 
+            // Попадания лазеров игрока
             for (let i = lasers.length - 1; i >= 0; i--) {
-                let l = lasers[i]; l.x += l.vx; l.y += l.vy; ctx.fillStyle = "#00ffff"; ctx.fillRect(l.x - 2, l.y, 4, 15);
-                if (boss && l.x > boss.x - boss.width/2 && l.x < boss.x + boss.width/2 && l.y > boss.y - boss.height/2 && l.y < boss.y + boss.height/2) {
-                    boss.hp--; createExplosion(l.x, l.y, "#ff00ff"); lasers.splice(i, 1);
-                    if (boss.hp <= 0) { createExplosion(boss.x, boss.y, "#ff00ff"); boss = null; score += 200; scoreEl.innerText = score; } continue;
+                let l = lasers[i]; l.x += l.vx; l.y += l.vy; ctx.fillStyle = "#00fffa"; ctx.fillRect(l.x - 1.5, l.y, 3, 13);
+                if (boss && l.x > boss.x - 60 && l.x < boss.x + 60 && l.y > boss.y - 25 && l.y < boss.y + 25) {
+                    boss.hp--; createExplosion(l.x, l.y, "#ff0055"); lasers.splice(i, 1);
+                    if (boss.hp <= 0) { createExplosion(boss.x, boss.y, "#ff0055"); boss = null; bossCount++; score += 300; scoreEl.innerText = score; } continue;
                 }
                 for (let j = asteroids.length - 1; j >= 0; j--) {
                     let ast = asteroids[j];
                     if (Math.hypot(l.x - ast.x, l.y - ast.y) < ast.radius) {
-                        createExplosion(ast.x, ast.y, "#8a8a8a"); if (Math.random() < 0.15) upgrades.push({ x: ast.x, y: ast.y, type: Math.random() < 0.5 ? 'triple' : 'shield', speed: 2 });
+                        createExplosion(ast.x, ast.y, "#6a6a7a"); if (Math.random() < 0.12) upgrades.push({ x: ast.x, y: ast.y, type: Math.random() < 0.5 ? 'triple' : 'shield', speed: 1.8 });
                         asteroids.splice(j, 1); lasers.splice(i, 1); score += 10; scoreEl.innerText = score; break;
                     }
                 }
                 if (l && l.y < 0) lasers.splice(i, 1);
             }
 
+            // Атаки врагов
             for (let i = enemyLasers.length - 1; i >= 0; i--) {
-                let el = enemyLasers[i]; el.y += el.speed; ctx.fillStyle = "#ff0055"; ctx.fillRect(el.x - 3, el.y, 6, 15);
-                if (Math.hypot(el.x - player.x, el.y - player.y) < player.radius) { enemyLasers.splice(i, 1); if (player.hasShield) { player.hasShield = false; shieldUiEl.innerText = "Выключен"; } else endGame(); }
+                let el = enemyLasers[i]; el.y += el.speed; ctx.fillStyle = "#ff003c"; ctx.fillRect(el.x - 2.5, el.y, 5, 14);
+                if (Math.hypot(el.x - player.x, el.y - player.y) < player.radius) {
+                    enemyLasers.splice(i, 1);
+                    if (player.hasShield) { player.hasShield = false; shieldUiEl.innerText = "Выкл"; } else endGame();
+                }
                 if (el.y > canvas.height) enemyLasers.splice(i, 1);
             }
 
+            // Астероиды
             for (let i = asteroids.length - 1; i >= 0; i--) {
                 let ast = asteroids[i]; ast.y += ast.speed; ast.angle += ast.rotSpeed;
-                ctx.save(); ctx.translate(ast.x, ast.y); ctx.rotate(ast.angle); ctx.fillStyle = "#4a4a5a"; ctx.strokeStyle = "#7a7a8a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, ast.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-                ctx.fillStyle = "#3a3a4a"; ctx.beginPath(); ctx.arc(-ast.radius/3, -ast.radius/4, ast.radius/4, 0, Math.PI*2); ctx.fill(); ctx.restore();
-                if (Math.hypot(ast.x - player.x, ast.y - player.y) < ast.radius + player.radius) { asteroids.splice(i, 1); if (player.hasShield) { player.hasShield = false; shieldUiEl.innerText = "Выключен"; } else endGame(); }
+                ctx.save(); ctx.translate(ast.x, ast.y); ctx.rotate(ast.angle); ctx.fillStyle = "#383848"; ctx.strokeStyle = "#5a5a6a"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, ast.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
+                if (Math.hypot(ast.x - player.x, ast.y - player.y) < ast.radius + player.radius) {
+                    asteroids.splice(i, 1); if (player.hasShield) { player.hasShield = false; shieldUiEl.innerText = "Выкл"; } else endGame();
+                }
                 if (ast.y - ast.radius > canvas.height) asteroids.splice(i, 1);
             }
 
+            // Сбор улучшения
             for (let i = upgrades.length - 1; i >= 0; i--) {
-                let up = upgrades[i]; up.y += up.speed; ctx.shadowBlur = 10;
-                if (up.type === 'triple') { ctx.fillStyle = "#ff00ff"; ctx.shadowColor = "#ff00ff"; } else { ctx.fillStyle = "#ffaa00"; ctx.shadowColor = "#ffaa00"; }
-                ctx.beginPath(); ctx.arc(up.x, up.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
-                if (Math.hypot(up.x - player.x, up.y - player.y) < player.radius + 10) {
-                    if (up.type === 'triple') { player.weaponType = 'triple'; player.weaponTimer = 400; weaponUiEl.innerText = "ТРОЙНОЙ ЛАЗЕР"; weaponUiEl.style.color = "#ff00ff"; }
-                    else { player.hasShield = true; player.shieldTimer = 500; shieldUiEl.innerText = "АКТИВЕН"; shieldUiEl.style.color = "#00ff00"; }
+                let up = upgrades[i]; up.y += up.speed;
+                ctx.fillStyle = up.type === 'triple' ? "#ff00ff" : "#00ff66"; ctx.beginPath(); ctx.arc(up.x, up.y, 8, 0, Math.PI * 2); ctx.fill();
+                if (Math.hypot(up.x - player.x, up.y - player.y) < player.radius + 8) {
+                    if (up.type === 'triple') { player.weaponType = 'triple'; player.weaponTimer = 350; weaponUiEl.innerText = "Тройной лазер"; weaponUiEl.style.color = "#ff00ff"; }
+                    else { player.hasShield = true; player.shieldTimer = 450; shieldUiEl.innerText = "Активен"; shieldUiEl.style.color = "#00ff00"; }
                     upgrades.splice(i, 1);
                 }
                 if (up.y > canvas.height) upgrades.splice(i, 1);
             }
 
-            for (let i = particles.length - 1; i >= 0; i--) { let p = particles[i]; p.x += p.vx; p.y += p.vy; p.alpha -= 0.02; ctx.fillStyle = p.color; ctx.globalAlpha = p.alpha; ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill(); if (p.alpha <= 0) particles.splice(i, 1); }
+            // Эффект взрыва
+            for (let i = particles.length - 1; i >= 0; i--) { let p = particles[i]; p.x += p.vx; p.y += p.vy; p.alpha -= 0.025; ctx.fillStyle = p.color; ctx.globalAlpha = p.alpha; ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill(); if (p.alpha <= 0) particles.splice(i, 1); }
             ctx.globalAlpha = 1.0;
             requestAnimationFrame(gameLoop);
         }
@@ -186,11 +274,10 @@
         function endGame() { isGameOver = true; gameOverEl.style.display = "block"; }
 
         function restartGame() {
-            score = 0; scoreEl.innerText = score; weaponUiEl.innerText = "Обычное"; weaponUiEl.style.color = "#00ffff"; shieldUiEl.innerText = "Выключен"; shieldUiEl.style.color = "#ffaa00"; isGameOver = false; boss = null;
-            lasers = []; enemyLasers = []; asteroids = []; upgrades = []; particles = []; player.x = canvas.width / 2; player.weaponType = 'normal'; player.hasShield = false; gameOverEl.style.display = "none"; gameLoop();
+            score = 0; scoreEl.innerText = score; bossCount = 1; isGameOver = false; boss = null;
+            lasers = []; enemyLasers = []; asteroids = []; upgrades = []; particles = []; player.x = canvas.width / 2;
+            gameOverEl.style.display = "none"; menuEl.style.display = "flex";
         }
-
-        gameLoop();
     </script>
 </body>
 </html>
