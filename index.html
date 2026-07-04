@@ -3,231 +3,193 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Космический Защитник</title>
+    <title>Космический Защитник 2.0</title>
     <style>
-        /* Настройки экрана под мобилку */
         body, html {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background-color: #0b0b1e;
+            margin: 0; padding: 0; overflow: hidden;
+            background-color: #050510;
             font-family: 'Arial', sans-serif;
-            width: 100%;
-            height: 100%;
-            user-select: none;
-            touch-action: none; /* Отключает стандартные жесты браузера */
+            width: 100%; height: 100%;
+            user-select: none; touch-action: none;
         }
-        /* Игровой холст */
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-        /* Интерфейс поверх игры */
+        canvas { display: block; width: 100%; height: 100%; }
         #ui {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #fff;
-            font-size: 20px;
-            font-weight: bold;
-            text-shadow: 0 0 5px #000;
-            pointer-events: none;
+            position: absolute; top: 15px; left: 15px;
+            color: #fff; font-size: 18px; font-weight: bold;
+            text-shadow: 0 0 8px #00ffff; pointer-events: none;
+            display: flex; flex-direction: column; gap: 5px;
         }
-        /* Экран Game Over */
         #game-over {
-            display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #ff3333;
-            text-align: center;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 30px;
-            border-radius: 15px;
-            border: 2px solid #ff3333;
+            display: none; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); color: #ff3333; text-align: center;
+            background: rgba(5, 5, 20, 0.9); padding: 30px; border-radius: 15px;
+            border: 2px solid #ff3333; box-shadow: 0 0 20px #ff3333;
         }
-        #game-over h2 { margin: 0 0 10px 0; font-size: 32px; }
         #game-over button {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 12px 25px;
-            font-size: 18px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 15px;
+            background: #28a745; color: white; border: none;
+            padding: 12px 30px; font-size: 18px; border-radius: 8px;
+            cursor: pointer; margin-top: 15px; box-shadow: 0 0 10px #28a745;
         }
     </style>
 </head>
 <body>
 
-    <div id="ui">Счёт: <span id="score">0</span></div>
+    <div id="ui">
+        <div>Счёт: <span id="score">0</span></div>
+        <div>Оружие: <span id="weapon-ui" style="color: #00ffff;">Обычное</span></div>
+        <div>Щит: <span id="shield-ui" style="color: #ffaa00;">Выключен</span></div>
+    </div>
     
     <div id="game-over">
-        <h2>ИГРА ОКОНЧЕНА</h2>
-        <p>Ваш корабль уничтожен астероидом!</p>
-        <button onclick="restartGame()">Играть снова</button>
+        <h2>КОРАБЛЬ УНИЧТОЖЕН</h2>
+        <p>Вы пали в бою с космической угрозой!</p>
+        <button onclick="restartGame()">Начать заново</button>
     </div>
 
     <canvas id="gameCanvas"></canvas>
-
-    <script>
+        <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
         const scoreEl = document.getElementById("score");
+        const weaponUiEl = document.getElementById("weapon-ui");
+        const shieldUiEl = document.getElementById("shield-ui");
         const gameOverEl = document.getElementById("game-over");
 
-        // Подстраиваем размер холста под экран телефона
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
         }
         resizeCanvas();
 
-        // Игровые переменные
-        let score = 0;
-        let isGameOver = false;
+        let score = 0; let isGameOver = false; let frameCount = 0;
 
-        // Игрок (Корабль)
         const player = {
-            x: canvas.width / 2,
-            y: canvas.height - 100,
-            radius: 20,
-            color: "#00ffff"
+            x: canvas.width / 2, y: canvas.height - 120, radius: 22,
+            weaponType: 'normal', weaponTimer: 0, hasShield: false, shieldTimer: 0
         };
 
-        // Массивы для объектов
-        let lasers = [];
-        let asteroids = [];
+        let lasers = []; let enemyLasers = []; let asteroids = [];
+        let upgrades = []; let particles = []; let boss = null;
 
-        // Таймеры спавна
-        let asteroidInterval = 40; // Каждые 40 кадров новый астероид
-        let frameCount = 0;
-        let laserTimer = 0;
+        let stars = [];
+        for (let i = 0; i < 50; i++) {
+            stars.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, size: Math.random() * 2, speed: Math.random() * 1 + 0.5 });
+        }
 
-        // --- Управление тачем на телефоне ---
+        function createExplosion(x, y, color) {
+            for (let i = 0; i < 12; i++) {
+                particles.push({
+                    x: x, y: y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
+                    radius: Math.random() * 3 + 1, alpha: 1, color: color
+                });
+            }
+        }
+
         window.addEventListener("touchmove", (e) => {
             if (isGameOver) return;
-            const touch = e.touches[0];
-            // Корабль плавно перемещается за пальцем по горизонтали
-            player.x = touch.clientX;
-            // Ограничиваем, чтобы не вылетал за края экрана
+            player.x = e.touches[0].clientX;
             if (player.x < player.radius) player.x = player.radius;
             if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
         });
-
-        // --- Главный игровой цикл ---
-        function gameLoop() {
+                    function gameLoop() {
             if (isGameOver) return;
-
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             frameCount++;
 
-            // 1. Автоматическая стрельба лазерами
-            laserTimer++;
-            if (laserTimer >= 12) { // Скорость стрельбы
-                lasers.push({ x: player.x, y: player.y - player.radius, speed: 8, radius: 4 });
-                laserTimer = 0;
+            ctx.fillStyle = "#ffffff";
+            stars.forEach(s => { s.y += s.speed; if (s.y > canvas.height) s.y = 0; ctx.fillRect(s.x, s.y, s.size, s.size); });
+
+            if (player.weaponType === 'triple' && --player.weaponTimer <= 0) { player.weaponType = 'normal'; weaponUiEl.innerText = "Обычное"; weaponUiEl.style.color = "#00ffff"; }
+            if (player.hasShield && --player.shieldTimer <= 0) { player.hasShield = false; shieldUiEl.innerText = "Выключен"; shieldUiEl.style.color = "#ffaa00"; }
+
+            if (frameCount % 10 === 0) {
+                if (player.weaponType === 'triple') {
+                    lasers.push({ x: player.x, y: player.y - 20, vx: 0, vy: -10 });
+                    lasers.push({ x: player.x - 15, y: player.y, vx: -2, vy: -9 });
+                    lasers.push({ x: player.x + 15, y: player.y, vx: 2, vy: -9 });
+                } else { lasers.push({ x: player.x, y: player.y - 20, vx: 0, vy: -10 }); }
             }
 
-            // 2. Генерация астероидов
-            if (frameCount % asteroidInterval === 0) {
-                const radius = Math.random() * 20 + 15; // Случайный размер
-                asteroids.push({
-                    x: Math.random() * (canvas.width - radius * 2) + radius,
-                    y: -radius,
-                    speed: Math.random() * 3 + 2, // Случайная скорость падения
-                    radius: radius
-                });
+            if (score > 0 && score % 500 === 0 && !boss) {
+                boss = { x: canvas.width / 2, y: -100, targetY: 100, width: 120, height: 60, hp: 50, maxHp: 50, dir: 1, speed: 2 };
             }
 
-            // 3. Отрисовка игрока (Корабль-треугольник)
-            ctx.beginPath();
-            ctx.moveTo(player.x, player.y - player.radius);
-            ctx.lineTo(player.x - player.radius, player.y + player.radius);
-            ctx.lineTo(player.x + player.radius, player.y + player.radius);
-            ctx.closePath();
-            ctx.fillStyle = player.color;
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = player.color;
-            ctx.fill();
-            ctx.shadowBlur = 0; // Сбрасываем свечение для оптимизации
+            if (!boss && frameCount % 35 === 0) {
+                let size = Math.random() * 25 + 15;
+                asteroids.push({ x: Math.random() * (canvas.width - size * 2) + size, y: -size, speed: Math.random() * 3 + 3, radius: size, angle: 0, rotSpeed: (Math.random() - 0.5) * 0.05 });
+            }
 
-            // 4. Движение и отрисовка лазеров
+            if (boss) {
+                if (boss.y < boss.targetY) boss.y += 2;
+                else { boss.x += boss.speed * boss.dir; if (boss.x > canvas.width - boss.width/2 - 20 || boss.x < boss.width/2 + 20) boss.dir *= -1; }
+                if (frameCount % 45 === 0) { enemyLasers.push({ x: boss.x - 30, y: boss.y + 30, speed: 6 }); enemyLasers.push({ x: boss.x + 30, y: boss.y + 30, speed: 6 }); }
+                ctx.fillStyle = "#ff00ff"; ctx.shadowBlur = 20; ctx.shadowColor = "#ff00ff"; ctx.fillRect(boss.x - boss.width/2, boss.y - boss.height/2, boss.width, boss.height);
+                ctx.fillStyle = "#ffaa00"; ctx.fillRect(boss.x - 20, boss.y - boss.height/2 - 10, 40, 10); ctx.shadowBlur = 0;
+                ctx.fillStyle = "#330033"; ctx.fillRect(boss.x - 50, boss.y - 50, 100, 8); ctx.fillStyle = "#ff00ff"; ctx.fillRect(boss.x - 50, boss.y - 50, (boss.hp / boss.maxHp) * 100, 8);
+            }
+
+            ctx.shadowBlur = 15; ctx.shadowColor = "#00ffff";
+            ctx.fillStyle = frameCount % 2 === 0 ? "#ff5500" : "#ffaa00"; ctx.beginPath(); ctx.moveTo(player.x - 8, player.y + 20); ctx.lineTo(player.x, player.y + 35); ctx.lineTo(player.x + 8, player.y + 20); ctx.fill();
+            ctx.fillStyle = "#00ffff"; ctx.beginPath(); ctx.moveTo(player.x, player.y - 25); ctx.lineTo(player.x - 20, player.y + 20); ctx.lineTo(player.x + 20, player.y + 20); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = "#ffffff"; ctx.fillRect(player.x - 4, player.y - 5, 8, 12);
+
+            if (player.hasShield) { ctx.strokeStyle = "#ffaa00"; ctx.lineWidth = 3; ctx.shadowColor = "#ffaa00"; ctx.beginPath(); ctx.arc(player.x, player.y, player.radius + 10, 0, Math.PI * 2); ctx.stroke(); }
+            ctx.shadowBlur = 0;
+
             for (let i = lasers.length - 1; i >= 0; i--) {
-                const l = lasers[i];
-                l.y -= l.speed;
-
-                ctx.beginPath();
-                ctx.arc(l.x, l.y, l.radius, 0, Math.PI * 2);
-                ctx.fillStyle = "#ff0055";
-                ctx.fill();
-
-                // Удаляем лазер, если улетел за экран
-                if (l.y < 0) lasers.splice(i, 1);
-            }
-
-            // 5. Движение и отрисовка астероидов + Проверка столкновений
-            for (let i = asteroids.length - 1; i >= 0; i--) {
-                const a = asteroids[i];
-                a.y += a.speed;
-
-                ctx.beginPath();
-                ctx.arc(a.x, a.y, a.radius, 0, Math.PI * 2);
-                ctx.fillStyle = "#8a8a8a";
-                ctx.fill();
-
-                // Проверка столкновения астероида с КОРАБЛЕМ
-                const distToPlayer = Math.hypot(a.x - player.x, a.y - player.y);
-                if (distToPlayer < a.radius + player.radius) {
-                    endGame();
+                let l = lasers[i]; l.x += l.vx; l.y += l.vy; ctx.fillStyle = "#00ffff"; ctx.fillRect(l.x - 2, l.y, 4, 15);
+                if (boss && l.x > boss.x - boss.width/2 && l.x < boss.x + boss.width/2 && l.y > boss.y - boss.height/2 && l.y < boss.y + boss.height/2) {
+                    boss.hp--; createExplosion(l.x, l.y, "#ff00ff"); lasers.splice(i, 1);
+                    if (boss.hp <= 0) { createExplosion(boss.x, boss.y, "#ff00ff"); boss = null; score += 200; scoreEl.innerText = score; } continue;
                 }
-
-                // Проверка столкновения ЛАЗЕРОВ с этим астероидом
-                for (let j = lasers.length - 1; j >= 0; j--) {
-                    const l = lasers[j];
-                    const distToLaser = Math.hypot(a.x - l.x, a.y - l.y);
-
-                    if (distToLaser < a.radius + l.radius) {
-                        // Попали! Удаляем астероид и лазер
-                        asteroids.splice(i, 1);
-                        lasers.splice(j, 1);
-                        score += 10;
-                        scoreEl.innerText = score;
-                        break;
+                for (let j = asteroids.length - 1; j >= 0; j--) {
+                    let ast = asteroids[j];
+                    if (Math.hypot(l.x - ast.x, l.y - ast.y) < ast.radius) {
+                        createExplosion(ast.x, ast.y, "#8a8a8a"); if (Math.random() < 0.15) upgrades.push({ x: ast.x, y: ast.y, type: Math.random() < 0.5 ? 'triple' : 'shield', speed: 2 });
+                        asteroids.splice(j, 1); lasers.splice(i, 1); score += 10; scoreEl.innerText = score; break;
                     }
                 }
-
-                // Удаляем астероид, если он упал ниже экрана
-                if (a.y - a.radius > canvas.height) {
-                    asteroids.splice(i, 1);
-                }
+                if (l && l.y < 0) lasers.splice(i, 1);
             }
 
+            for (let i = enemyLasers.length - 1; i >= 0; i--) {
+                let el = enemyLasers[i]; el.y += el.speed; ctx.fillStyle = "#ff0055"; ctx.fillRect(el.x - 3, el.y, 6, 15);
+                if (Math.hypot(el.x - player.x, el.y - player.y) < player.radius) { enemyLasers.splice(i, 1); if (player.hasShield) { player.hasShield = false; shieldUiEl.innerText = "Выключен"; } else endGame(); }
+                if (el.y > canvas.height) enemyLasers.splice(i, 1);
+            }
+
+            for (let i = asteroids.length - 1; i >= 0; i--) {
+                let ast = asteroids[i]; ast.y += ast.speed; ast.angle += ast.rotSpeed;
+                ctx.save(); ctx.translate(ast.x, ast.y); ctx.rotate(ast.angle); ctx.fillStyle = "#4a4a5a"; ctx.strokeStyle = "#7a7a8a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, ast.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = "#3a3a4a"; ctx.beginPath(); ctx.arc(-ast.radius/3, -ast.radius/4, ast.radius/4, 0, Math.PI*2); ctx.fill(); ctx.restore();
+                if (Math.hypot(ast.x - player.x, ast.y - player.y) < ast.radius + player.radius) { asteroids.splice(i, 1); if (player.hasShield) { player.hasShield = false; shieldUiEl.innerText = "Выключен"; } else endGame(); }
+                if (ast.y - ast.radius > canvas.height) asteroids.splice(i, 1);
+            }
+
+            for (let i = upgrades.length - 1; i >= 0; i--) {
+                let up = upgrades[i]; up.y += up.speed; ctx.shadowBlur = 10;
+                if (up.type === 'triple') { ctx.fillStyle = "#ff00ff"; ctx.shadowColor = "#ff00ff"; } else { ctx.fillStyle = "#ffaa00"; ctx.shadowColor = "#ffaa00"; }
+                ctx.beginPath(); ctx.arc(up.x, up.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+                if (Math.hypot(up.x - player.x, up.y - player.y) < player.radius + 10) {
+                    if (up.type === 'triple') { player.weaponType = 'triple'; player.weaponTimer = 400; weaponUiEl.innerText = "ТРОЙНОЙ ЛАЗЕР"; weaponUiEl.style.color = "#ff00ff"; }
+                    else { player.hasShield = true; player.shieldTimer = 500; shieldUiEl.innerText = "АКТИВЕН"; shieldUiEl.style.color = "#00ff00"; }
+                    upgrades.splice(i, 1);
+                }
+                if (up.y > canvas.height) upgrades.splice(i, 1);
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) { let p = particles[i]; p.x += p.vx; p.y += p.vy; p.alpha -= 0.02; ctx.fillStyle = p.color; ctx.globalAlpha = p.alpha; ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill(); if (p.alpha <= 0) particles.splice(i, 1); }
+            ctx.globalAlpha = 1.0;
             requestAnimationFrame(gameLoop);
         }
 
-        // --- Конец игры ---
-        function endGame() {
-            isGameOver = true;
-            gameOverEl.style.display = "block";
-        }
+        function endGame() { isGameOver = true; gameOverEl.style.display = "block"; }
 
-        // --- Рестарт ---
         function restartGame() {
-            score = 0;
-            scoreEl.innerText = score;
-            isGameOver = false;
-            lasers = [];
-            asteroids = [];
-            player.x = canvas.width / 2;
-            gameOverEl.style.display = "none";
-            gameLoop();
+            score = 0; scoreEl.innerText = score; weaponUiEl.innerText = "Обычное"; weaponUiEl.style.color = "#00ffff"; shieldUiEl.innerText = "Выключен"; shieldUiEl.style.color = "#ffaa00"; isGameOver = false; boss = null;
+            lasers = []; enemyLasers = []; asteroids = []; upgrades = []; particles = []; player.x = canvas.width / 2; player.weaponType = 'normal'; player.hasShield = false; gameOverEl.style.display = "none"; gameLoop();
         }
 
-        // Запуск
         gameLoop();
     </script>
 </body>
