@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Космический Защитник</title>
+    <style>
+        /* Настройки экрана под мобилку */
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0b0b1e;
+            font-family: 'Arial', sans-serif;
+            width: 100%;
+            height: 100%;
+            user-select: none;
+            touch-action: none; /* Отключает стандартные жесты браузера */
+        }
+        /* Игровой холст */
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* Интерфейс поверх игры */
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 0 0 5px #000;
+            pointer-events: none;
+        }
+        /* Экран Game Over */
+        #game-over {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff3333;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 30px;
+            border-radius: 15px;
+            border: 2px solid #ff3333;
+        }
+        #game-over h2 { margin: 0 0 10px 0; font-size: 32px; }
+        #game-over button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui">Счёт: <span id="score">0</span></div>
+    
+    <div id="game-over">
+        <h2>ИГРА ОКОНЧЕНА</h2>
+        <p>Ваш корабль уничтожен астероидом!</p>
+        <button onclick="restartGame()">Играть снова</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreEl = document.getElementById("score");
+        const gameOverEl = document.getElementById("game-over");
+
+        // Подстраиваем размер холста под экран телефона
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+
+        // Игровые переменные
+        let score = 0;
+        let isGameOver = false;
+
+        // Игрок (Корабль)
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height - 100,
+            radius: 20,
+            color: "#00ffff"
+        };
+
+        // Массивы для объектов
+        let lasers = [];
+        let asteroids = [];
+
+        // Таймеры спавна
+        let asteroidInterval = 40; // Каждые 40 кадров новый астероид
+        let frameCount = 0;
+        let laserTimer = 0;
+
+        // --- Управление тачем на телефоне ---
+        window.addEventListener("touchmove", (e) => {
+            if (isGameOver) return;
+            const touch = e.touches[0];
+            // Корабль плавно перемещается за пальцем по горизонтали
+            player.x = touch.clientX;
+            // Ограничиваем, чтобы не вылетал за края экрана
+            if (player.x < player.radius) player.x = player.radius;
+            if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
+        });
+
+        // --- Главный игровой цикл ---
+        function gameLoop() {
+            if (isGameOver) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            frameCount++;
+
+            // 1. Автоматическая стрельба лазерами
+            laserTimer++;
+            if (laserTimer >= 12) { // Скорость стрельбы
+                lasers.push({ x: player.x, y: player.y - player.radius, speed: 8, radius: 4 });
+                laserTimer = 0;
+            }
+
+            // 2. Генерация астероидов
+            if (frameCount % asteroidInterval === 0) {
+                const radius = Math.random() * 20 + 15; // Случайный размер
+                asteroids.push({
+                    x: Math.random() * (canvas.width - radius * 2) + radius,
+                    y: -radius,
+                    speed: Math.random() * 3 + 2, // Случайная скорость падения
+                    radius: radius
+                });
+            }
+
+            // 3. Отрисовка игрока (Корабль-треугольник)
+            ctx.beginPath();
+            ctx.moveTo(player.x, player.y - player.radius);
+            ctx.lineTo(player.x - player.radius, player.y + player.radius);
+            ctx.lineTo(player.x + player.radius, player.y + player.radius);
+            ctx.closePath();
+            ctx.fillStyle = player.color;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = player.color;
+            ctx.fill();
+            ctx.shadowBlur = 0; // Сбрасываем свечение для оптимизации
+
+            // 4. Движение и отрисовка лазеров
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                const l = lasers[i];
+                l.y -= l.speed;
+
+                ctx.beginPath();
+                ctx.arc(l.x, l.y, l.radius, 0, Math.PI * 2);
+                ctx.fillStyle = "#ff0055";
+                ctx.fill();
+
+                // Удаляем лазер, если улетел за экран
+                if (l.y < 0) lasers.splice(i, 1);
+            }
+
+            // 5. Движение и отрисовка астероидов + Проверка столкновений
+            for (let i = asteroids.length - 1; i >= 0; i--) {
+                const a = asteroids[i];
+                a.y += a.speed;
+
+                ctx.beginPath();
+                ctx.arc(a.x, a.y, a.radius, 0, Math.PI * 2);
+                ctx.fillStyle = "#8a8a8a";
+                ctx.fill();
+
+                // Проверка столкновения астероида с КОРАБЛЕМ
+                const distToPlayer = Math.hypot(a.x - player.x, a.y - player.y);
+                if (distToPlayer < a.radius + player.radius) {
+                    endGame();
+                }
+
+                // Проверка столкновения ЛАЗЕРОВ с этим астероидом
+                for (let j = lasers.length - 1; j >= 0; j--) {
+                    const l = lasers[j];
+                    const distToLaser = Math.hypot(a.x - l.x, a.y - l.y);
+
+                    if (distToLaser < a.radius + l.radius) {
+                        // Попали! Удаляем астероид и лазер
+                        asteroids.splice(i, 1);
+                        lasers.splice(j, 1);
+                        score += 10;
+                        scoreEl.innerText = score;
+                        break;
+                    }
+                }
+
+                // Удаляем астероид, если он упал ниже экрана
+                if (a.y - a.radius > canvas.height) {
+                    asteroids.splice(i, 1);
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- Конец игры ---
+        function endGame() {
+            isGameOver = true;
+            gameOverEl.style.display = "block";
+        }
+
+        // --- Рестарт ---
+        function restartGame() {
+            score = 0;
+            scoreEl.innerText = score;
+            isGameOver = false;
+            lasers = [];
+            asteroids = [];
+            player.x = canvas.width / 2;
+            gameOverEl.style.display = "none";
+            gameLoop();
+        }
+
+        // Запуск
+        gameLoop();
+    </script>
+</body>
+</html>
